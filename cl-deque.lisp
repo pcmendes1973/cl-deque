@@ -1,17 +1,22 @@
 ;;;; Deque class
+;;;; Deque structure loosely based on the deque object in C++
+;;;; The implementation is based on 2 CLOS classes: node, which
+;;;; contains individual nodes in a doubly linked list, and
+;;;; deque, which implements the actual deque.
 
 
-;;; Node class to create doubly linked lists
+;;; node class and methods
 (defclass node ()
   ((content
-    :initarg :content
-    :accessor content)
+    :accessor content
+    :initarg :content)
    (prev
-    :initform nil
-    :accessor prev)
-   (next
-    :initform nil
-    :accessor next)))
+    :accessor prev
+    :initform nil)
+   (next    
+    :accessor next
+    :initform nil))
+  (:documentation "Node class to create doubly linked lists"))
 
 (defun make-node (content &key prev next)
   "Creates a new node, doubly linked to nodes prev and next. Returns the new node"
@@ -46,45 +51,47 @@
         obj
       (format stream "~a ~:[~:[sole~;first~]~;~:[last~;middle~]~]" content prev next))))
 
-(defun print-list (lst &key from-end)  
+(defun print-list (nodes &key from-end)  
   "Prints out the items of a linked list in separate lines"
   (let ((direction (if from-end 'prev 'next)))
-    (loop for i = lst then (slot-value i direction)
+    (loop for i = nodes then (slot-value i direction)
           while i do (pprint i))))
 
-(defmacro do-linked-list ((var lst &key from-end) &body body)
+(defmacro do-linked-list ((var nodes &key from-end) &body body)
   (let ((i (gensym)))
-    "Iterates over lst in either direction"
-    `(loop for ,i = ,lst
+    "Iterates over linked list 'nodes'  in either direction"
+    `(loop for ,i = ,nodes
            then (,(if from-end 'prev 'next) ,i)
            while ,i
            do (let ((,var (content ,i))) (progn ,@body)))))
 
-(defun make-linked-list (lst)
+(defun make-linked-list (nodes)
   "Creates a doubly linked list from a common list. Returns
 pointers to the first and last elements in the list and the
 number of nodes in the list."
-  (if lst 
-      (loop with 1st = (make-node (car lst))
-            for i in lst
+  (if nodes 
+      (loop with 1st = (make-node (first nodes))
+            for i in nodes
             for j = 1st then (make-node i :prev j)
             counting t into n
             finally (return (values 1st j n)))
       (values nil nil 0)))
 
 
-;;; Deque class
+;;; deque class and methods
 
 (defclass deque ()
   ((element-count
+    :accessor element-count
     :initarg :element-count
-    :accessor element-count)
+    :type integer)
    (first-element
-    :initform nil
-    :accessor first-element)
-   (last-element
-    :initform nil
-    :accessor last-element)))
+    :accessor first-element
+    :initform nil)
+   (last-element    
+    :accessor last-element
+    :initform nil))
+  (:documentation "deque class to create and manage deques"))
 
 (defmethod print-object ((obj deque) stream)
     "Prints a deque object. Output has the format:
@@ -102,11 +109,11 @@ number of nodes in the list."
                 (if last (content last))))))
 
 
-(defun make-deque (&optional lst)
+(defun make-deque (&optional contents)
   "Constructor for deque object. Takes a list as argument and returns a deque
 with the same elements in order."
   (multiple-value-bind (first last n)
-      (make-linked-list lst)
+      (make-linked-list contents)
     (let ((d (make-instance 'deque :element-count n)))
       (setf (first-element d) first
             (last-element d) last)
@@ -203,28 +210,30 @@ Returns the resulting deque."
                               (incf (element-count obj))))))
   (values obj))
 
-(defmethod nth-element ((obj deque) n &key from-end  &aux (c (element-count obj)))
+(defmethod nth-element ((obj deque) n &key from-end)
   "Returns the nth element of a deque. If from-end is non-nil, returns the nth element before last."
-  (assert (<= n c)
-          ()
-          "Index out of range. Position ~d requested, but deque has only ~d elements" n c)
-  (loop with d = (if from-end 'prev 'next)
-        repeat (1+ n)
-        for k = (slot-value obj (if from-end 'last-element 'first-element))
-        then (slot-value k d)
-        finally (return (content k))))
+  (let ((c (element-count obj)))
+    (assert (<= n c)
+            ()
+            "Index out of range. Position ~d requested, but deque has only ~d elements" n c)
+    (loop with d = (if from-end 'prev 'next)
+          repeat (1+ n)
+          for k = (slot-value obj (if from-end 'last-element 'first-element))
+          then (slot-value k d)
+          finally (return (content k)))))
 
-(defmethod change-nth-element ((obj deque) pos value &key from-end &aux (c (element-count obj)))
+(defmethod change-nth-element ((obj deque) pos value &key from-end)
   "Changes the value of the 'pos' element in a deque to 'value'.
 If 'from-end' is T, the deque is traversed in reverse order."
-  (assert (<= pos c)
-          ()
-          "Index out of range. Position ~d requested, but deque has only ~d elements" pos c)
-  (loop with d = (if from-end 'prev 'next)
-        repeat (1+ pos)
-        for k = (slot-value obj (if from-end 'last-element 'first-element))
-        then (slot-value k d)
-        finally (return (setf (content k) value))))
+  (let ((c (element-count obj)))
+    (assert (<= pos c)
+            ()
+            "Index out of range. Position ~d requested, but deque has only ~d elements" pos c)
+    (loop with d = (if from-end 'prev 'next)
+          repeat (1+ pos)
+          for k = (slot-value obj (if from-end 'last-element 'first-element))
+          then (slot-value k d)
+          finally (return (setf (content k) value)))))
 
 (define-setf-expander nth-element (obj n &key from-end)
   "Makes individual elements of a deque setf-able using the change-nth-element function."
@@ -237,7 +246,7 @@ If 'from-end' is T, the deque is traversed in reverse order."
 
 
 (defmacro do-deque ((var deque &key from-end) &body body)
-  "Executes the closure 'body' for each element of a deque. If from-end is t,
+  "Executes the program 'body' for each element of a deque. If from-end is t,
 iterates over the deque in reverse order."
   `(do-linked-list (,var 
                     ,@(if from-end `((last-element ,deque) :from-end t)
@@ -268,3 +277,5 @@ Returns the element if successful, nil otherwise"
          (setf i (next i) pos (1+ pos))
          (if (null i) (return-from nil nil))
          (go ::loop)))))
+
+
