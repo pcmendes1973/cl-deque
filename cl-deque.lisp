@@ -212,8 +212,8 @@ Returns the resulting deque."
 
 (defmethod nth-element ((obj deque) n &key from-end)
   "Returns the nth element of a deque. If from-end is non-nil, returns the nth element before last."
-  (let ((c (element-count obj)))
-    (assert (<= n c)
+  (let ((c (1- (element-count obj))))
+    (assert (<= 0 n c)
             ()
             "Index out of range. Position ~d requested, but deque has only ~d elements" n c)
     (loop with d = (if from-end 'prev 'next)
@@ -225,8 +225,8 @@ Returns the resulting deque."
 (defmethod change-nth-element ((obj deque) pos value &key from-end)
   "Changes the value of the 'pos' element in a deque to 'value'.
 If 'from-end' is T, the deque is traversed in reverse order."
-  (let ((c (element-count obj)))
-    (assert (<= pos c)
+  (let ((c (1- (element-count obj))))
+    (assert (<= 0 pos c)
             ()
             "Index out of range. Position ~d requested, but deque has only ~d elements" pos c)
     (loop with d = (if from-end 'prev 'next)
